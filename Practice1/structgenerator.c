@@ -1,13 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-
+#include <string.h>
 
 struct dogType{
 	int age;
 	float weight;
 	char gender;
-	float height;
+	int height; //cm
 	char name[32];
 	char animal_type[32];
 	char race[16];
@@ -15,7 +15,7 @@ struct dogType{
 
 
 const int n= 1716;
-//read petnames.txt and return an array of names.
+//read petnames.txt and return k-th line.
 char* get_name(int k){
 	FILE *file;
 	char * line=NULL;
@@ -61,7 +61,6 @@ char* randname(char** names){
 int main(){
 
 	long i;
-	char *k = malloc(64);
 	FILE *file;
 	file = fopen("dataDogs.txt","w+");
 	int antirepeat = 151;
@@ -70,12 +69,28 @@ int main(){
     int b=16;
     float min= 5;
     float max= 50;
+    char atype[32] = "12345678901234567890123456789012";
+    char arace[16] = "1234567890123456";
+
    
     printf("Random int %d\n", randint(a,b));
     printf("Random float %f\n", randfloat(min,max));
-    for(i=0;i<10000;i++){ // put it equals 10 M (now 1M)
-    	antirepeat =  (antirepeat*19+i) % n +1;
-    	fputs(get_name(antirepeat),file);
+    for(i=0;i<100;i++){ // put it equals 10 M (now 100 for testing)
+    	struct dogType *reg;
+    	reg = malloc(sizeof(struct dogType));
+    	reg->age = randint(0,20);
+		reg->weight = randfloat(1.0,5.0);
+		reg->height = randint(30,200);
+
+		antirepeat =  (antirepeat*19+i) % n +1;
+
+		strcpy(reg->name,get_name(antirepeat));
+		strcpy(reg->animal_type, atype);
+		strcpy(reg->race, "1234567890123456");
+    	
+		//here we have reg ready to write into file.
+
+    	//fputs(get_name(antirepeat),file);
    		
 
     }
