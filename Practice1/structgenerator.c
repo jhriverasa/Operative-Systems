@@ -115,10 +115,7 @@ int main(){
 
     	
 		//here we have reg ready to write into file.
-		
-
 		//printf("%lu\n", hash(reg->name,10) );
-		delme[hash(reg->name,10)]++; 
 
 		if(i==0){
 			// printf("%d\n",reg->age );
