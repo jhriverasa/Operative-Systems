@@ -151,6 +151,6 @@ void createRegisters(){
 
 int main(){
 	createHeader();
-    createRegisters();
+	//createRegisters();
     return 0;
 }
