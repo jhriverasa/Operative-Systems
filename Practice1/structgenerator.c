@@ -3,6 +3,10 @@
 #include <time.h>
 #include <string.h>
 
+//# names in petnames.txt
+#define N_PETNAMES 1716
+//#indexes in hashtable
+#define N_INDEXES 10
 
 struct dogType{
 	int age;
@@ -12,10 +16,15 @@ struct dogType{
 	char name[32];
 	char animal_type[32];
 	char race[16];
+	long next_struct;
 };
 
-//# names in petnames.txt
-const int n= 1716;
+struct fileHeader{
+	int total_registers;
+	long head_pos[N_INDEXES];
+};
+
+
 
 
 //read petnames.txt and return k-th line.
@@ -42,12 +51,13 @@ int randint(int a,int b){
 	int r;
 
     srand(time(0));
-    if (a > b)
+    if (a > b){
         r=((rand() % (a-b+1)) + b);
-    else if (b > a)
+    }else if (b > a){
         r=((rand() % (b-a+1)) + a);
-    else
+    }else{
         r= a;
+    }
 
 	return r;
 
@@ -59,13 +69,13 @@ float randfloat( float min, float max ){
     return min + scale * ( max - min );     
 }
 
-
-void writeStruct(void *reg){
+//append a register to dataDogs.txt/.bin
+void writeRegister(void *reg){
 	FILE *file;
 	struct dogType *dt;
 	dt = reg;
 
-	file = fopen("dataDogs.txt","wb+");
+	file = fopen("dataDogs.txt","ab");
 	fwrite(&dt,sizeof(struct dogType),1,file);
 	fclose(file);
 	
@@ -73,10 +83,8 @@ void writeStruct(void *reg){
 
 //return Dan Bernstein Hash Function with modulo operation.
 unsigned long hash(unsigned char *str, int mod){
-
 	unsigned long hash = 5381;
 	int c;
-
 	while(c= *str++){
 		hash = ((hash << 5) + hash) + c;
 	}
@@ -84,21 +92,27 @@ unsigned long hash(unsigned char *str, int mod){
 
 }
 
+void createHeader(){
+	FILE *file;
+	file = fopen("dataDogs.txt","wb+");
+	struct fileHeader *header;
+	header = malloc(sizeof(struct fileHeader));
+	header->total_registers = 0;
+	int i;
+	for(i=0;i<N_INDEXES;i++){
+		header->head_pos[i]=0;
+	}
+	fwrite(&header,sizeof(struct fileHeader),1,file);
+	fclose(file);
+}
 
-
-
-
-
-int main(){
+//generate 100/10M registers in dataDogs.txt/.bin
+void createRegisters(){
 
 	long i;
-	FILE *file;
-	file = fopen("dataDogs.txt","w+");
-
 	int antirepeat = 151; //arbitrary prime number
     char atype[32] = "12345678901234567890123456789012";
     char arace[16] = "1234567890123456";
-
 
     for(i=0;i<100;i++){ // put it equals 10 M (now 100 for testing)
 
@@ -108,7 +122,7 @@ int main(){
     	reg->age = randint(0,20);
 		reg->weight = randfloat(1.0,5.0);
 		reg->height = randint(30,200);
-		antirepeat =  (antirepeat*19+i) % n +1; 
+		antirepeat =  (antirepeat*19+i) % N_PETNAMES +1;
 		strcpy(reg->name,get_name(antirepeat));
 		strcpy(reg->animal_type, atype);
 		strcpy(reg->race, "1234567890123456");
@@ -124,14 +138,19 @@ int main(){
 			// printf("%s\n",reg->name );
 			// printf("%s\n",reg->animal_type );
 			// printf("%s\n",reg->race );
-			writeStruct(reg);	
+			writeRegister(reg);	
 		}
 
 
     	
     }
 
+}
 
-    
+
+
+int main(){
+	createHeader();
+    createRegisters();
     return 0;
 }
