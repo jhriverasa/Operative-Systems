@@ -7,6 +7,11 @@
 #define N_PETNAMES 1716
 //#indexes in hashtable
 #define N_INDEXES 10
+//File to Write 10M structs
+#define FILE_DATADOGS "dataDogs.txt"
+//File with names
+#define FILE_NAMES "petnames.txt"
+
 
 struct dogType{
 	int age;
@@ -35,7 +40,7 @@ char* get_name(int k){
 	size_t len = 0;
 	ssize_t read;
 
-	file =fopen("petnames.txt","r");
+	file =fopen(FILE_NAMES,"r");
 	for (counter=0;counter<k;counter++){
 		read= getline(&line,&len,file);
 	}
@@ -70,15 +75,31 @@ float randfloat( float min, float max ){
 }
 
 //append a register to dataDogs.txt/.bin
-void writeRegister(void *reg){
+//and return position (offset) in file.
+long writeRegister(void *regdt){
 	FILE *file;
 	struct dogType *dt;
-	dt = reg;
+	dt = regdt;
 
-	file = fopen("dataDogs.txt","ab");
+	long position;
+
+	file = fopen(FILE_DATADOGS,"ab");
+	position= ftell(file);
+	
 	fwrite(&dt,sizeof(struct dogType),1,file);
 	fclose(file);
-	
+	return position;
+}
+
+//return header (pointer to struct)
+void* readHeader(){
+	FILE *file;
+	struct fileHeader *header;
+	file =fopen(FILE_DATADOGS,"rb");
+	header = malloc(sizeof(struct fileHeader));
+	fread(header,sizeof(struct fileHeader),1,file);
+	fclose(file);
+	return header;
 }
 
 //return Dan Bernstein Hash Function with modulo operation.
@@ -92,9 +113,47 @@ unsigned long hash(unsigned char *str, int mod){
 
 }
 
+//update Header in dataDogs.txt/bin
+void updateHeader(void *newHeader){
+	FILE *file;
+	//overwrite header bytes.
+	file = fopen(FILE_DATADOGS,"rb+");
+
+	struct fileHeader *header;
+	header = newHeader;
+
+	fseek(file,0,SEEK_SET);
+	fwrite(header,sizeof(struct fileHeader),1,file);
+	fclose(file);
+
+}
+
+// Add register (dogtype) to file (dataDogs.txt/.bin) and update header
+void addRegister(void *reg){
+	struct fileHeader *header;
+	header = readHeader();
+
+	struct dogType *dt;
+	dt = reg;
+	long position;
+	unsigned long hashed;
+	hashed = hash(dt->name , N_INDEXES);
+	if(header->head_pos[hashed] == 0 ){ //List is empty
+		position = writeRegister(dt);
+		header->head_pos[hashed]=position;
+		updateHeader(header);
+	}else{ //list has one or more elements
+
+	}
+
+}
+
+
+
+//create file and write header
 void createHeader(){
 	FILE *file;
-	file = fopen("dataDogs.txt","wb+");
+	file = fopen(FILE_DATADOGS,"wb+");
 	struct fileHeader *header;
 	header = malloc(sizeof(struct fileHeader));
 	header->total_registers = 0;
@@ -102,9 +161,11 @@ void createHeader(){
 	for(i=0;i<N_INDEXES;i++){
 		header->head_pos[i]=0;
 	}
-	fwrite(&header,sizeof(struct fileHeader),1,file);
+	fwrite(header,sizeof(struct fileHeader),1,file);
 	fclose(file);
 }
+
+
 
 //generate 100/10M registers in dataDogs.txt/.bin
 void createRegisters(){
@@ -126,6 +187,7 @@ void createRegisters(){
 		strcpy(reg->name,get_name(antirepeat));
 		strcpy(reg->animal_type, atype);
 		strcpy(reg->race, "1234567890123456");
+		reg->next_struct = 0; //long
 
     	
 		//here we have reg ready to write into file.
@@ -138,7 +200,9 @@ void createRegisters(){
 			// printf("%s\n",reg->name );
 			// printf("%s\n",reg->animal_type );
 			// printf("%s\n",reg->race );
-			writeRegister(reg);	
+
+
+			addRegister(reg);	
 		}
 
 
@@ -151,6 +215,8 @@ void createRegisters(){
 
 int main(){
 	createHeader();
-	//createRegisters();
+	createRegisters();
+	//updateHeader();
+    
     return 0;
 }
