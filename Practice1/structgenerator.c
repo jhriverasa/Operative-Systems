@@ -170,8 +170,11 @@ void addRegister(void *reg){
 	unsigned long hashed;
 	hashed = hash(dt->name , N_INDEXES);
 	if(header->head_pos[hashed] == 0 ){ //List is empty
+
+		//write register, head position and counter totalregisters updated.
 		position = writeRegister(dt);
 		header->head_pos[hashed]=position;
+		header->total_registers = header->total_registers+1;
 		updateHeader(header);
 	}else{ //list has one or more elements
 
@@ -187,8 +190,11 @@ void addRegister(void *reg){
 		//add new tail
 		long newTailPosition;
 		newTailPosition = writeRegister(dt);
+		header->total_registers = header->total_registers+1;
 		//update old tail, now will point to new tail
+		//and update header (counter totalregisters )
 		currentReg->next_struct = newTailPosition;
+		updateHeader(header);
 		updateRegister(currentReg, tailPosition);
 
 
@@ -221,8 +227,8 @@ void createRegisters(){
 
 	long i;
 	int antirepeat = 151; //arbitrary prime number
-    char atype[32] = "12345678901234567890123456789012";
-    char arace[16] = "1234567890123456";
+    //char atype[32] = "12345678901234567890123456789012";
+    //char arace[16] = "1234567890123456";
 
     for(i=0;i<100;i++){ // put it equals 10 M (now 100 for testing)
 
@@ -234,9 +240,14 @@ void createRegisters(){
 		reg->height = randint(30,200);
 		antirepeat =  (antirepeat*19+i) % N_PETNAMES +1;
 		strcpy(reg->name,get_name(antirepeat));
-		strcpy(reg->animal_type, atype);
-		strcpy(reg->race, "1234567890123456");
+		strcpy(reg->animal_type, "1234567890123456789012345678901\0");
+		strcpy(reg->race, "123456789012345\0");
 		reg->next_struct = 0; //long
+		if(i%2 == 0){
+			reg->gender = 'H';
+		}else{
+			reg->gender = 'M';
+		}
 
 		//here we have reg ready to write into file.
 		addRegister(reg);
