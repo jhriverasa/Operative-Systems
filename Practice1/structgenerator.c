@@ -45,6 +45,7 @@ char* get_name(int k){
 		read= getline(&line,&len,file);
 	}
 	char *ptr = malloc(sizeof(char)*read);
+	line[read-1]= '\0';
 	ptr =line;
 	fclose(file);
 	return ptr;

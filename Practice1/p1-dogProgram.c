@@ -64,6 +64,7 @@ char* get_name(int k){
 		read= getline(&line,&len,file);
 	}
 	char *ptr = malloc(sizeof(char)*read);
+	line[read-1]= '\0';
 	ptr =line;
 	fclose(file);
 	return ptr;
@@ -242,6 +243,8 @@ void createHeader(){
 
 
 
+
+
 //generate 100/10M registers in dataDogs.txt/.bin
 void createRegister(){
 
@@ -280,6 +283,13 @@ void createRegister(){
 
 }
 
+void deleteRegister(void *reg,long position){
+	struct dogType *dt;
+	dt=reg;
+	//is head in list
+}
+
+//print menu to show a specific register.
 void seeRegister(){
 	struct fileHeader *header;
 	header = readHeader();
@@ -314,7 +324,7 @@ void seeRegister(){
 
 }
 
-void deleteRegister(){
+void menuDelRegister(){
 
 	struct fileHeader *header;
 	header = readHeader();
@@ -344,9 +354,92 @@ void deleteRegister(){
 		printf("%s%c\n","Pet gender (F/M): ",reg->gender);
 		printf("%s","--------------------------------\n\n");
 		printf("%s","----Do you want to delete this register? (y/n)---\n");
-		
+		char ans;
+		scanf(" %c",&ans);
+		if(ans=='y'){
+			//delete register
+			deleteRegister(reg,position);
+
+
+		}else if(ans=='n'){
+			menuDelRegister();
+		}else{
+			printf("%s","----Invalid answer!!!---\n");
+			menuDelRegister();
+		}
 
 	}
+
+}
+
+
+void menuSearchRegister(){
+	struct fileHeader *header;
+	header = readHeader();
+	printf("%s","---------------------\n");
+	printf("%s","*** Search Register ***\n");
+	printf("%s","----------------------\n\n");
+	printf("%s","Enter pet name (Max 31 chars)\n");
+	
+	char regName[32];
+	scanf("%s", regName);
+	unsigned long hashed;
+	hashed = hash(regName,N_INDEXES);
+
+
+	if(header->head_pos[hashed] == 0 ){ //List is empty
+
+		//write register, head position and counter total_registers updated.
+		printf("%s","No registers found!.\n");
+	}else{ //list has one or more elements
+
+		//edit here
+		struct dogType *currentReg;
+		currentReg = readRegister(header->head_pos[hashed]);
+		long tailPosition;
+		//get the tail in list and its position.
+		tailPosition = header->head_pos[hashed];
+		while(currentReg->next_struct != 0){
+			tailPosition = currentReg->next_struct;
+			currentReg = readRegister(currentReg->next_struct);
+		}
+		//add new tail
+		long newTailPosition;
+		newTailPosition = writeRegister(dt);
+		header->total_registers = header->total_registers+1;
+		//update old tail, now will point to new tail
+		//and update header (counter total_registers )
+		currentReg->next_struct = newTailPosition;
+		updateHeader(header);
+		updateRegister(currentReg, tailPosition);
+
+
+	}
+
+
+	// if(false){ //change me to something useful (error validating)
+	// 	printf("%s","Invalid register number (not in range!).\n");
+	// 	seeRegister();
+	// }else{
+		
+	// 	long position = sizeof(struct fileHeader) + (regNum-1)*sizeof(struct dogType); 
+	// 	struct dogType *reg;
+	// 	reg = readRegister(position);
+
+	// 	printf("%s%d%s","------ Register #",regNum," ------\n");
+	// 	printf("%s%s\n","Pet name : ",reg->name);
+	// 	printf("%s%d\n","Pet age (years): ",reg->age);
+	// 	printf("%s%f\n","Pet weight (Kg): ",reg->weight);
+	// 	printf("%s%d\n","Pet height (cm): ",reg->height);
+	// 	printf("%s%s\n","Animal : ",reg->animal_type);
+	// 	printf("%s%s\n","Pet race : ",reg->race);
+	// 	printf("%s%c\n","Pet gender (F/M): ",reg->gender);
+	// 	printf("%s","------Opening File(Medical Record)------\n");
+		
+
+	// 	//here stuff to open medical record
+
+	// }
 
 }
 
@@ -376,9 +469,9 @@ void menu(){
 	}else if(option ==2){
 		seeRegister();
 	}else if(option ==3){
-		deleteRegister();
+		//menuDelRegister();
 	}else if(option ==4){
-
+		menuSearchRegister();
 	}else if(option ==5){
 		bye();
 	}else{
