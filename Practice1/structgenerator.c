@@ -86,7 +86,7 @@ long writeRegister(void *regdt){
 	file = fopen(FILE_DATADOGS,"ab");
 	position= ftell(file);
 	
-	fwrite(&dt,sizeof(struct dogType),1,file);
+	fwrite(dt,sizeof(struct dogType),1,file);
 	fclose(file);
 	return position;
 }
@@ -100,6 +100,18 @@ void* readHeader(){
 	fread(header,sizeof(struct fileHeader),1,file);
 	fclose(file);
 	return header;
+}
+
+//return register (pointer to dogType struct)
+void* readRegister(long position){
+	FILE *file;
+	struct fileHeader *reg;
+	file =fopen(FILE_DATADOGS,"rb");
+	reg = malloc(sizeof(struct dogType));
+	fseek(file,position,SEEK_SET);
+	fread(reg,sizeof(struct dogType),1,file);
+	fclose(file);
+	return reg;
 }
 
 //return Dan Bernstein Hash Function with modulo operation.
@@ -126,9 +138,28 @@ void updateHeader(void *newHeader){
 	fwrite(header,sizeof(struct fileHeader),1,file);
 	fclose(file);
 
+
 }
 
-// Add register (dogtype) to file (dataDogs.txt/.bin) and update header
+//update register in dataDogs.txt/bin
+void updateRegister(void *newRegister,long position){
+	FILE *file;
+	//overwrite register bytes.
+	file = fopen(FILE_DATADOGS,"rb+");
+
+	struct dogType *dt;
+	dt = newRegister;
+
+	fseek(file,position,SEEK_SET);
+	fwrite(dt,sizeof(struct dogType),1,file);
+	fclose(file);
+
+
+}
+
+
+
+// Add register (dogType) to file (dataDogs.txt/.bin) and update header
 void addRegister(void *reg){
 	struct fileHeader *header;
 	header = readHeader();
@@ -143,6 +174,23 @@ void addRegister(void *reg){
 		header->head_pos[hashed]=position;
 		updateHeader(header);
 	}else{ //list has one or more elements
+
+		struct dogType *currentReg;
+		currentReg = readRegister(header->head_pos[hashed]);
+		long tailPosition;
+		//get the tail in list and its position.
+		tailPosition = header->head_pos[hashed];
+		while(currentReg->next_struct != 0){
+			tailPosition = currentReg->next_struct;
+			currentReg = readRegister(currentReg->next_struct);
+		}
+		//add new tail
+		long newTailPosition;
+		newTailPosition = writeRegister(dt);
+		//update old tail, now will point to new tail
+		currentReg->next_struct = newTailPosition;
+		updateRegister(currentReg, tailPosition);
+
 
 	}
 
@@ -162,6 +210,7 @@ void createHeader(){
 		header->head_pos[i]=0;
 	}
 	fwrite(header,sizeof(struct fileHeader),1,file);
+	free(header);
 	fclose(file);
 }
 
@@ -189,24 +238,10 @@ void createRegisters(){
 		strcpy(reg->race, "1234567890123456");
 		reg->next_struct = 0; //long
 
-    	
 		//here we have reg ready to write into file.
-		//printf("%lu\n", hash(reg->name,10) );
+		addRegister(reg);
+		free(reg);	
 
-		if(i==0){
-			// printf("%d\n",reg->age );
-			// printf("%f\n",reg->weight );
-			// printf("%d\n",reg->height );
-			// printf("%s\n",reg->name );
-			// printf("%s\n",reg->animal_type );
-			// printf("%s\n",reg->race );
-
-
-			addRegister(reg);	
-		}
-
-
-    	
     }
 
 }
@@ -214,9 +249,8 @@ void createRegisters(){
 
 
 int main(){
+	printf("%d\n", sizeof(struct dogType));
 	createHeader();
 	createRegisters();
-	//updateHeader();
-    
     return 0;
 }
