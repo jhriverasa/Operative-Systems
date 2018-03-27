@@ -6,11 +6,13 @@
 //# names in petnames.txt
 #define N_PETNAMES 1716
 //#indexes in hashtable
-#define N_INDEXES 10
+#define N_INDEXES 100
 //File to Write 10M structs
 #define FILE_DATADOGS "dataDogs.txt"
 //File with names
 #define FILE_NAMES "petnames.txt"
+//Num of registers to write
+#define N_TOTALREGISTERS 1000
 
 
 struct dogType{
@@ -32,23 +34,29 @@ struct fileHeader{
 
 
 
-//read petnames.txt and return k-th line.
-char* get_name(int k){
+//read petnames.txt and load names in a an array of strings (ptr).
+void load_names(char ptr[N_PETNAMES][32]){
 	FILE *file;
 	char * line=NULL;
 	int counter;
 	size_t len = 0;
 	ssize_t read;
+	int c;
 
 	file =fopen(FILE_NAMES,"r");
-	for (counter=0;counter<k;counter++){
+	for (counter=0;counter<N_PETNAMES;counter++){
 		read= getline(&line,&len,file);
+		line[read-1]= '\0';
+
+		for(c=0;c<read;c++){
+			ptr[counter][c]= line[c];
+		}
+
 	}
-	char *ptr = malloc(sizeof(char)*read);
-	line[read-1]= '\0';
-	ptr =line;
+	
+	
 	fclose(file);
-	return ptr;
+
 }
 
 
@@ -92,27 +100,21 @@ long writeRegister(void *regdt){
 	return position;
 }
 
-//return header (pointer to struct)
-void* readHeader(){
+//return header in a given pointer
+void readHeader(struct fileHeader *header){
 	FILE *file;
-	struct fileHeader *header;
 	file =fopen(FILE_DATADOGS,"rb");
-	header = malloc(sizeof(struct fileHeader));
 	fread(header,sizeof(struct fileHeader),1,file);
 	fclose(file);
-	return header;
 }
 
-//return register (pointer to dogType struct)
-void* readRegister(long position){
+//return register (pointer to dogType struct) in a given pointer
+void readRegister(long position, struct dogType *reg){
 	FILE *file;
-	struct fileHeader *reg;
 	file =fopen(FILE_DATADOGS,"rb");
-	reg = malloc(sizeof(struct dogType));
 	fseek(file,position,SEEK_SET);
 	fread(reg,sizeof(struct dogType),1,file);
 	fclose(file);
-	return reg;
 }
 
 //return Dan Bernstein Hash Function with modulo operation.
@@ -163,7 +165,8 @@ void updateRegister(void *newRegister,long position){
 // Add register (dogType) to file (dataDogs.txt/.bin) and update header
 void addRegister(void *reg){
 	struct fileHeader *header;
-	header = readHeader();
+	header = malloc(sizeof(struct fileHeader));
+	readHeader(header);
 
 	struct dogType *dt;
 	dt = reg;
@@ -180,13 +183,14 @@ void addRegister(void *reg){
 	}else{ //list has one or more elements
 
 		struct dogType *currentReg;
-		currentReg = readRegister(header->head_pos[hashed]);
+		currentReg = malloc(sizeof(struct dogType));
+		readRegister(header->head_pos[hashed] , currentReg);
 		long tailPosition;
 		//get the tail in list and its position.
 		tailPosition = header->head_pos[hashed];
 		while(currentReg->next_struct != 0){
 			tailPosition = currentReg->next_struct;
-			currentReg = readRegister(currentReg->next_struct);
+			readRegister(currentReg->next_struct , currentReg);
 		}
 		//add new tail
 		long newTailPosition;
@@ -197,9 +201,10 @@ void addRegister(void *reg){
 		currentReg->next_struct = newTailPosition;
 		updateHeader(header);
 		updateRegister(currentReg, tailPosition);
-
+		free(currentReg);
 
 	}
+	free(header);
 
 }
 
@@ -230,8 +235,11 @@ void createRegisters(){
 	int antirepeat = 151; //arbitrary prime number
     //char atype[32] = "12345678901234567890123456789012";
     //char arace[16] = "1234567890123456";
+	char names[N_PETNAMES][32];
+	load_names(names); 
 
-    for(i=0;i<100;i++){ // put it equals 10 M (now 100 for testing)
+
+    for(i=0;i<N_TOTALREGISTERS;i++){ // put it equals 10 M (now 100 for testing)
 
     	//build and fill dogType Struct with pseudo-random data
     	struct dogType *reg;
@@ -239,8 +247,8 @@ void createRegisters(){
     	reg->age = randint(0,20);
 		reg->weight = randfloat(1.0,5.0);
 		reg->height = randint(30,200);
-		antirepeat =  (antirepeat*19+i) % N_PETNAMES +1;
-		strcpy(reg->name,get_name(antirepeat));
+		antirepeat =  (antirepeat*19+i) % N_PETNAMES;
+		strcpy(reg->name, names[antirepeat]);
 		strcpy(reg->animal_type, "1234567890123456789012345678901\0");
 		strcpy(reg->race, "123456789012345\0");
 		reg->next_struct = 0; //long
@@ -252,7 +260,7 @@ void createRegisters(){
 
 		//here we have reg ready to write into file.
 		addRegister(reg);
-		free(reg);	
+		free(reg);
 
     }
 
@@ -261,7 +269,6 @@ void createRegisters(){
 
 
 int main(){
-	printf("%d\n", sizeof(struct dogType));
 	createHeader();
 	createRegisters();
     return 0;

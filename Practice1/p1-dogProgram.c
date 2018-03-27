@@ -2,11 +2,14 @@
 #include <stdlib.h>
 #include <time.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+
 
 //# names in petnames.txt
 #define N_PETNAMES 1716
 //#indexes in hashtable
-#define N_INDEXES 10
+#define N_INDEXES 100
 //File to Write 10M structs
 #define FILE_DATADOGS "dataDogs.txt"
 //File with names
@@ -51,48 +54,6 @@ char* itoa(int i, char b[]){
 }
 
 
-//read petnames.txt and return k-th line.
-char* get_name(int k){
-	FILE *file;
-	char * line=NULL;
-	int counter;
-	size_t len = 0;
-	ssize_t read;
-
-	file =fopen(FILE_NAMES,"r");
-	for (counter=0;counter<k;counter++){
-		read= getline(&line,&len,file);
-	}
-	char *ptr = malloc(sizeof(char)*read);
-	line[read-1]= '\0';
-	ptr =line;
-	fclose(file);
-	return ptr;
-}
-
-
-//return a random integer between a and b
-int randint(int a,int b){
-	int r;
-
-    srand(time(0));
-    if (a > b){
-        r=((rand() % (a-b+1)) + b);
-    }else if (b > a){
-        r=((rand() % (b-a+1)) + a);
-    }else{
-        r= a;
-    }
-
-	return r;
-
-}
-
-//return a random float between min and max
-float randfloat( float min, float max ){
-    float scale = rand() / (float) RAND_MAX;
-    return min + scale * ( max - min );     
-}
 
 //append a register to dataDogs.txt/.bin
 //and return position (offset) in file.
@@ -111,27 +72,21 @@ long writeRegister(void *regdt){
 	return position;
 }
 
-//return header (pointer to struct)
-void* readHeader(){
+//return header in a given pointer
+void readHeader(struct fileHeader *header){
 	FILE *file;
-	struct fileHeader *header;
 	file =fopen(FILE_DATADOGS,"rb");
-	header = malloc(sizeof(struct fileHeader));
 	fread(header,sizeof(struct fileHeader),1,file);
 	fclose(file);
-	return header;
 }
 
-//return register (pointer to dogType struct)
-void* readRegister(long position){
+//return register (pointer to dogType struct) in a given pointer
+void readRegister(long position, struct dogType *reg){
 	FILE *file;
-	struct fileHeader *reg;
 	file =fopen(FILE_DATADOGS,"rb");
-	reg = malloc(sizeof(struct dogType));
 	fseek(file,position,SEEK_SET);
 	fread(reg,sizeof(struct dogType),1,file);
 	fclose(file);
-	return reg;
 }
 
 //return Dan Bernstein Hash Function with modulo operation.
@@ -178,11 +133,11 @@ void updateRegister(void *newRegister,long position){
 }
 
 
-
 // Add register (dogType) to file (dataDogs.txt/.bin) and update header
 void addRegister(void *reg){
 	struct fileHeader *header;
-	header = readHeader();
+	header = malloc(sizeof(struct fileHeader));
+	readHeader(header);
 
 	struct dogType *dt;
 	dt = reg;
@@ -191,7 +146,7 @@ void addRegister(void *reg){
 	hashed = hash(dt->name , N_INDEXES);
 	if(header->head_pos[hashed] == 0 ){ //List is empty
 
-		//write register, head position and counter total_registers updated.
+		//write register, head position and counter total registers updated.
 		position = writeRegister(dt);
 		header->head_pos[hashed]=position;
 		header->total_registers = header->total_registers+1;
@@ -199,29 +154,30 @@ void addRegister(void *reg){
 	}else{ //list has one or more elements
 
 		struct dogType *currentReg;
-		currentReg = readRegister(header->head_pos[hashed]);
+		currentReg = malloc(sizeof(struct dogType));
+		readRegister(header->head_pos[hashed] , currentReg);
 		long tailPosition;
 		//get the tail in list and its position.
 		tailPosition = header->head_pos[hashed];
 		while(currentReg->next_struct != 0){
 			tailPosition = currentReg->next_struct;
-			currentReg = readRegister(currentReg->next_struct);
+			readRegister(currentReg->next_struct , currentReg);
 		}
 		//add new tail
 		long newTailPosition;
 		newTailPosition = writeRegister(dt);
 		header->total_registers = header->total_registers+1;
 		//update old tail, now will point to new tail
-		//and update header (counter total_registers )
+		//and update header (counter total registers )
 		currentReg->next_struct = newTailPosition;
 		updateHeader(header);
 		updateRegister(currentReg, tailPosition);
-
+		free(currentReg);
 
 	}
+	free(header);
 
 }
-
 
 
 
@@ -240,6 +196,7 @@ void createHeader(){
 	free(header);
 	fclose(file);
 }
+
 
 
 
@@ -283,31 +240,204 @@ void createRegister(){
 
 }
 
-void deleteRegister(void *reg,long position){
-	struct dogType *dt;
-	dt=reg;
-	//is head in list
+//swap a register in position with the last one, updating pointers in list.
+void swapRegister(void *reg, long position){
+	struct dogType *RegA;
+	RegA=reg;
+	long PosA =position;
+	int optionA;
+
+	struct fileHeader *header;
+	header = malloc(sizeof(struct fileHeader));
+	readHeader(header);
+
+	struct dogType *RegB;
+	long PosB = sizeof(struct fileHeader) + (header->total_registers-1)*sizeof(struct dogType);
+	RegB = malloc(sizeof(struct dogType));
+	readRegister(PosB , RegB);
+	
+	int optionB;
+
+	struct dogType *currentRegA;
+	currentRegA = malloc(sizeof(struct dogType));
+	long currentPosA;
+
+	struct dogType *currentRegB;
+	currentRegB = malloc(sizeof(struct dogType));
+	long currentPosB;
+
+	// updates for A
+	unsigned long hashedA;
+	hashedA = hash(RegA->name,N_INDEXES);
+	
+	
+
+	if(header->head_pos[hashedA] == PosA){//is head ?
+		optionA=1;
+		
+		
+	}else{ //isn't head
+
+		//update previous register in list
+		
+		currentPosA=header->head_pos[hashedA];
+		readRegister(header->head_pos[hashedA] , currentRegA);
+
+		while(currentRegA->next_struct != PosA){
+			currentPosA=currentRegA->next_struct;
+			readRegister(currentRegA->next_struct, currentRegA);
+		}
+		currentRegA->next_struct = PosB;
+		optionA=2;
+		
+	}
+
+
+	//updates for B
+	unsigned long hashedB;
+	hashedB = hash(RegB->name,N_INDEXES);
+	
+	
+	if(header->head_pos[hashedB] == PosB){//is head ?
+		optionB=1;
+		
+	}else{ //isn't head
+
+		//update previous register in list
+		currentPosB=header->head_pos[hashedB];
+		readRegister(header->head_pos[hashedB] , currentRegB);
+
+		while(currentRegB->next_struct != PosB){
+			currentPosB=currentRegB->next_struct;
+			readRegister(currentRegB->next_struct, currentRegB);
+		}
+		currentRegB->next_struct = PosA;
+		optionB=2;
+		
+	}
+
+	//write updates in file and swap positions.
+	if(optionA==1)header->head_pos[hashedA]= PosB;
+	if(optionA==2)updateRegister(currentRegA,currentPosA);
+	if(optionB==1)header->head_pos[hashedB]= PosA;
+	if(optionB==2)updateRegister(currentRegB,currentPosB);
+	updateHeader(header);
+
+	updateRegister(RegA,PosB);
+	updateRegister(RegB,PosA);
+
+	
+
+
+	
+
+}
+
+
+
+void deleteRegister(void *reg,long delPosition){
+	struct dogType *delReg;
+	delReg=reg;
+
+	swapRegister(delReg, delPosition);
+	struct fileHeader *header;
+	header = malloc(sizeof(struct fileHeader));
+	readHeader(header);
+	delPosition = sizeof(struct fileHeader) + (header->total_registers-1)*sizeof(struct dogType);
+
+	unsigned long hashed;
+	hashed = hash(delReg->name,N_INDEXES);
+	
+	if (delReg->next_struct == 0){//is tail?
+		if(header->head_pos[hashed] == delPosition){//is head too? (list with a single element)
+			
+			header->head_pos[hashed]= 0;
+			header->total_registers = header->total_registers-1;
+			updateHeader(header);
+
+
+		}else{ //is tail and not head
+
+			//look for register which is pointing to it and will be the tail now.
+			struct dogType *currentReg;
+			currentReg = malloc(sizeof(struct dogType));
+			long currentPos=header->head_pos[hashed];
+			readRegister(header->head_pos[hashed] , currentReg);
+
+			while(currentReg->next_struct != delPosition){
+				currentPos=currentReg->next_struct;
+				readRegister(currentReg->next_struct, currentReg);
+			}
+			currentReg->next_struct = 0;
+
+			updateRegister(currentReg,currentPos);
+			header->total_registers = header->total_registers-1;
+			updateHeader(header);
+
+
+		}
+
+
+	}else{ //not tail 
+		if(header->head_pos[hashed] == delPosition){ // is head and not the only one in list
+			header->head_pos[hashed]= delReg->next_struct;
+
+			header->total_registers = header->total_registers-1;
+			updateHeader(header);
+
+		}
+		else{ //is not tail or head
+
+			struct dogType *currentReg;
+			currentReg = malloc(sizeof(struct dogType));
+
+			long currentPos=header->head_pos[hashed];
+			long nextPos = delReg->next_struct;
+			readRegister(header->head_pos[hashed] , currentReg);
+			
+
+			while(currentReg->next_struct != delPosition){
+				currentPos=currentReg->next_struct;
+				readRegister(currentReg->next_struct, currentReg);
+			}
+			currentReg->next_struct= nextPos;
+
+			updateRegister(currentReg,currentPos);
+			header->total_registers = header->total_registers-1;
+			updateHeader(header);
+
+
+		}
+
+	}
+
+	long length = sizeof(struct fileHeader) + (header->total_registers)*sizeof(struct dogType); 
+	truncate(FILE_DATADOGS,length);
+
 }
 
 //print menu to show a specific register.
 void seeRegister(){
 	struct fileHeader *header;
-	header = readHeader();
+	header = malloc(sizeof(struct fileHeader));
+	readHeader(header);
 	printf("%s","---------------------\n");
 	printf("%s","*** Show Register ***\n");
 	printf("%s","----------------------\n\n");
 	printf("%s%d\n","Number of existing registers : ",header->total_registers);
-	printf("%s%d\n","insert a number between 1 - ",header->total_registers);
+	printf("%s%d\n","insert a number between 1 and ",header->total_registers);
 	int regNum;
 	scanf("%d",&regNum);
-	if(regNum<1 || regNum>header->total_registers){ 
+	if(regNum < 1 || regNum > header->total_registers){ 
 		printf("%s","Invalid register number (not in range!).\n");
 		seeRegister();
 	}else{
 		
+		//show register in position regNum
 		long position = sizeof(struct fileHeader) + (regNum-1)*sizeof(struct dogType); 
 		struct dogType *reg;
-		reg = readRegister(position);
+		reg= malloc(sizeof(struct dogType));
+		readRegister(position,reg);
 
 		printf("%s%d%s","------ Register #",regNum," ------\n");
 		printf("%s%s\n","Pet name : ",reg->name);
@@ -318,16 +448,21 @@ void seeRegister(){
 		printf("%s%s\n","Pet race : ",reg->race);
 		printf("%s%c\n","Pet gender (F/M): ",reg->gender);
 		printf("%s","------Opening File(Medical Record)------\n");
+
+		free(reg);
 		//here stuff to open medical record
 
 	}
+	
+	free(header);
 
 }
 
 void menuDelRegister(){
 
 	struct fileHeader *header;
-	header = readHeader();
+	header = malloc(sizeof(struct fileHeader));
+	readHeader(header);
 	printf("%s","---------------------\n");
 	printf("%s","*** Delete Register ***\n");
 	printf("%s","----------------------\n\n");
@@ -337,12 +472,13 @@ void menuDelRegister(){
 	scanf("%d",&regNum);
 	if(regNum<1 || regNum>header->total_registers){ 
 		printf("%s","Invalid register number (not in range!).\n");
-		seeRegister();
+		menuDelRegister();
 	}else{
 		
 		long position = sizeof(struct fileHeader) + (regNum-1)*sizeof(struct dogType); 
 		struct dogType *reg;
-		reg = readRegister(position);
+		reg= malloc(sizeof(struct dogType));
+		readRegister(position,reg);
 
 		printf("%s%d%s","------ Register #",regNum," ------\n");
 		printf("%s%s\n","Pet name : ",reg->name);
@@ -370,77 +506,96 @@ void menuDelRegister(){
 
 	}
 
+
 }
 
 
 void menuSearchRegister(){
 	struct fileHeader *header;
-	header = readHeader();
+	header = malloc(sizeof(struct fileHeader));
+	readHeader(header);
 	printf("%s","---------------------\n");
 	printf("%s","*** Search Register ***\n");
 	printf("%s","----------------------\n\n");
 	printf("%s","Enter pet name (Max 31 chars)\n");
 	
+	//receive name and calculate its hash.
 	char regName[32];
 	scanf("%s", regName);
 	unsigned long hashed;
 	hashed = hash(regName,N_INDEXES);
-
+	int counter;
+	counter=0;
 
 	if(header->head_pos[hashed] == 0 ){ //List is empty
 
-		//write register, head position and counter total_registers updated.
-		printf("%s","No registers found!.\n");
+		printf("%d%s",counter," registers found!.\n");
+	
 	}else{ //list has one or more elements
 
-		//edit here
+		//read every element in list and compare if their names are equal to asked name.
 		struct dogType *currentReg;
-		currentReg = readRegister(header->head_pos[hashed]);
+		currentReg = malloc(sizeof(struct dogType));
+		long index[50000];
+
+		readRegister(header->head_pos[hashed],currentReg);
+		if( strcasecmp(currentReg->name , regName) == 0 ){
+			index[counter]=header->head_pos[hashed];
+			counter++;
+		}
+
 		long tailPosition;
-		//get the tail in list and its position.
 		tailPosition = header->head_pos[hashed];
+
+		//Count every register found and write its positions in index[x]
 		while(currentReg->next_struct != 0){
 			tailPosition = currentReg->next_struct;
-			currentReg = readRegister(currentReg->next_struct);
+			readRegister(currentReg->next_struct, currentReg);
+			if( strcasecmp(currentReg->name , regName) == 0 ){
+				index[counter]=tailPosition;
+				counter++;
+			}
 		}
-		//add new tail
-		long newTailPosition;
-		newTailPosition = writeRegister(dt);
-		header->total_registers = header->total_registers+1;
-		//update old tail, now will point to new tail
-		//and update header (counter total_registers )
-		currentReg->next_struct = newTailPosition;
-		updateHeader(header);
-		updateRegister(currentReg, tailPosition);
+
+		//here we have all registers found in Counter and all their indexes in index[x]
+		printf("\n%d%s",counter," registers found!.\n");
+
+		//now ask for one of them (if we found 1 or more).
+		if(counter==0)menuSearchRegister();
+
+		printf("%s","------------------\n");
+		printf("%s","*** Which one? ***\n");
+		printf("%s","------------------\n");
+		printf("%s%d\n","Insert a number between 1 and ",counter);
+		int regNum;
+		scanf("%d",&regNum);
+		if(regNum<1 || regNum > counter){ 
+			printf("%s","Invalid register number (not in range!) :( .\n");
+			menuSearchRegister();
+		}else{
+			
+			//look in index, read and show register.
+			long position;
+			position = index[regNum-1];
+
+			struct dogType *reg;
+			reg= malloc(sizeof(struct dogType));
+			readRegister(position,reg);
+
+			printf("\n%s%d%s","------ Register found #",regNum," ------\n");
+			printf("%s%s\n","Pet name : ",reg->name);
+			printf("%s%d\n","Pet age (years): ",reg->age);
+			printf("%s%f\n","Pet weight (Kg): ",reg->weight);
+			printf("%s%d\n","Pet height (cm): ",reg->height);
+			printf("%s%s\n","Animal : ",reg->animal_type);
+			printf("%s%s\n","Pet race : ",reg->race);
+			printf("%s%c\n","Pet gender (F/M): ",reg->gender);
+			printf("%s","-------------------------------------\n");
+			free(reg);
 
 
+		}
 	}
-
-
-	// if(false){ //change me to something useful (error validating)
-	// 	printf("%s","Invalid register number (not in range!).\n");
-	// 	seeRegister();
-	// }else{
-		
-	// 	long position = sizeof(struct fileHeader) + (regNum-1)*sizeof(struct dogType); 
-	// 	struct dogType *reg;
-	// 	reg = readRegister(position);
-
-	// 	printf("%s%d%s","------ Register #",regNum," ------\n");
-	// 	printf("%s%s\n","Pet name : ",reg->name);
-	// 	printf("%s%d\n","Pet age (years): ",reg->age);
-	// 	printf("%s%f\n","Pet weight (Kg): ",reg->weight);
-	// 	printf("%s%d\n","Pet height (cm): ",reg->height);
-	// 	printf("%s%s\n","Animal : ",reg->animal_type);
-	// 	printf("%s%s\n","Pet race : ",reg->race);
-	// 	printf("%s%c\n","Pet gender (F/M): ",reg->gender);
-	// 	printf("%s","------Opening File(Medical Record)------\n");
-		
-
-	// 	//here stuff to open medical record
-
-	// }
-
 }
 
 
@@ -469,7 +624,7 @@ void menu(){
 	}else if(option ==2){
 		seeRegister();
 	}else if(option ==3){
-		//menuDelRegister();
+		menuDelRegister();
 	}else if(option ==4){
 		menuSearchRegister();
 	}else if(option ==5){
