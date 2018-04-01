@@ -6,13 +6,13 @@
 //# names in petnames.txt
 #define N_PETNAMES 1716
 //#indexes in hashtable
-#define N_INDEXES 100
+#define N_INDEXES 1000
 //File to Write 10M structs
 #define FILE_DATADOGS "dataDogs.txt"
 //File with names
 #define FILE_NAMES "petnames.txt"
 //Num of registers to write
-#define N_TOTALREGISTERS 1000
+#define N_TOTALREGISTERS 100000
 
 
 struct dogType{
@@ -163,7 +163,7 @@ void updateRegister(void *newRegister,long position){
 
 
 // Add register (dogType) to file (dataDogs.txt/.bin) and update header
-void addRegister(void *reg){
+void addRegister(void *reg,long tails[N_INDEXES]){
 	struct fileHeader *header;
 	header = malloc(sizeof(struct fileHeader));
 	readHeader(header);
@@ -177,6 +177,7 @@ void addRegister(void *reg){
 
 		//write register, head position and counter totalregisters updated.
 		position = writeRegister(dt);
+		tails[hashed] = position;
 		header->head_pos[hashed]=position;
 		header->total_registers = header->total_registers+1;
 		updateHeader(header);
@@ -184,14 +185,11 @@ void addRegister(void *reg){
 
 		struct dogType *currentReg;
 		currentReg = malloc(sizeof(struct dogType));
-		readRegister(header->head_pos[hashed] , currentReg);
 		long tailPosition;
 		//get the tail in list and its position.
-		tailPosition = header->head_pos[hashed];
-		while(currentReg->next_struct != 0){
-			tailPosition = currentReg->next_struct;
-			readRegister(currentReg->next_struct , currentReg);
-		}
+		tailPosition = tails[hashed];
+		readRegister(tailPosition , currentReg);
+		
 		//add new tail
 		long newTailPosition;
 		newTailPosition = writeRegister(dt);
@@ -201,6 +199,7 @@ void addRegister(void *reg){
 		currentReg->next_struct = newTailPosition;
 		updateHeader(header);
 		updateRegister(currentReg, tailPosition);
+		tails[hashed]=newTailPosition;
 		free(currentReg);
 
 	}
@@ -238,19 +237,33 @@ void createRegisters(){
 	char names[N_PETNAMES][32];
 	load_names(names); 
 
+	int intvalues[2000];
+	float floatvalues[1000];
+	long tails[N_INDEXES];
+	int j;
+	for(j=0;j<2000;j++){
+		intvalues[j]= randint(30,200);
+		if(j<1000){
+			floatvalues[j] = randfloat(1.0,5.0);
+		}
+		if(j<N_INDEXES){
+			tails[j]=0;
+		}
+	}
+
 
     for(i=0;i<N_TOTALREGISTERS;i++){ // put it equals 10 M (now 100 for testing)
 
     	//build and fill dogType Struct with pseudo-random data
     	struct dogType *reg;
     	reg = malloc(sizeof(struct dogType));
-    	reg->age = randint(0,20);
-		reg->weight = randfloat(1.0,5.0);
-		reg->height = randint(30,200);
+    	reg->age = intvalues[i%2000];
+		reg->weight = floatvalues[i%1000];
+		reg->height = intvalues[i%2000];
 		antirepeat =  (antirepeat*19+i) % N_PETNAMES;
 		strcpy(reg->name, names[antirepeat]);
-		strcpy(reg->animal_type, "1234567890123456789012345678901\0");
-		strcpy(reg->race, "123456789012345\0");
+		strcpy(reg->animal_type, "animaltype\0");
+		strcpy(reg->race, "race\0");
 		reg->next_struct = 0; //long
 		if(i%2 == 0){
 			reg->gender = 'H';
@@ -259,8 +272,11 @@ void createRegisters(){
 		}
 
 		//here we have reg ready to write into file.
-		addRegister(reg);
+		addRegister(reg,tails);
 		free(reg);
+		if (i%1000 ==0){
+			printf("%li\n", i );
+		}
 
     }
 
