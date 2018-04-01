@@ -8,11 +8,11 @@
 //#indexes in hashtable
 #define N_INDEXES 1000
 //File to Write 10M structs
-#define FILE_DATADOGS "dataDogs.txt"
+#define FILE_DATADOGS "dataDogs.dat"
 //File with names
 #define FILE_NAMES "petnames.txt"
 //Num of registers to write
-#define N_TOTALREGISTERS 100000
+#define N_TOTALREGISTERS 10000000
 
 
 struct dogType{
@@ -227,15 +227,15 @@ void createHeader(){
 
 
 
-//generate 100/10M registers in dataDogs.txt/.bin
+//generate 10M registers in dataDogs.txt/.bin
 void createRegisters(){
 
 	long i;
 	int antirepeat = 151; //arbitrary prime number
-    //char atype[32] = "12345678901234567890123456789012";
-    //char arace[16] = "1234567890123456";
-	char names[N_PETNAMES][32];
+    	char names[N_PETNAMES][32];
 	load_names(names); 
+	char *AnimalRace[10] = 	{"Labrador","BullDog","Samoyed","Akita","Pincher","Sharpie","Boxer","Golden","Danes","Siames"} ;
+	char *AnimalType[5] = {"Dog","Cat","Fish","Bird","Rabbit"} ;
 
 	int intvalues[2000];
 	float floatvalues[1000];
@@ -252,7 +252,7 @@ void createRegisters(){
 	}
 
 
-    for(i=0;i<N_TOTALREGISTERS;i++){ // put it equals 10 M (now 100 for testing)
+    for(i=0;i<N_TOTALREGISTERS;i++){ // put it equals 10 M 
 
     	//build and fill dogType Struct with pseudo-random data
     	struct dogType *reg;
@@ -262,11 +262,11 @@ void createRegisters(){
 		reg->height = intvalues[i%2000];
 		antirepeat =  (antirepeat*19+i) % N_PETNAMES;
 		strcpy(reg->name, names[antirepeat]);
-		strcpy(reg->animal_type, "animaltype\0");
-		strcpy(reg->race, "race\0");
+		strcpy(reg->animal_type, AnimalType[i%5]);
+		strcpy(reg->race, AnimalRace[i%10]);
 		reg->next_struct = 0; //long
 		if(i%2 == 0){
-			reg->gender = 'H';
+			reg->gender = 'F';
 		}else{
 			reg->gender = 'M';
 		}
@@ -284,7 +284,9 @@ void createRegisters(){
 
 
 
+
 int main(){
+
 	createHeader();
 	createRegisters();
     return 0;

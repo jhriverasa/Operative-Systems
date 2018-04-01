@@ -11,10 +11,14 @@
 //#indexes in hashtable
 #define N_INDEXES 1000
 //File to Write 10M structs
-#define FILE_DATADOGS "dataDogs.txt"
+#define FILE_DATADOGS "dataDogs.dat"
 //File with names
 #define FILE_NAMES "petnames.txt"
 
+//headers to avoid warnings
+void bye();
+void goback();
+void menu();
 
 struct dogType{
 	int age;
@@ -32,15 +36,15 @@ struct fileHeader{
 	long head_pos[N_INDEXES];
 };
 
-//"convert" an integer (i) to string (b[])
-char* itoa(int i, char b[]){
+//"convert" a long integer (i) to string (b[])
+char* itoa(long i, char b[]){
     char const digit[] = "0123456789";
     char* p = b;
     if(i<0){
         *p++ = '-';
         i *= -1;
     }
-    int shifter = i;
+    long shifter = i;
     do{ //Move to where representation ends
         ++p;
         shifter = shifter/10;
@@ -197,10 +201,52 @@ void createHeader(){
 	fclose(file);
 }
 
+//Create and/or open Medical record in default text editor
+void showMedicalRecord(long position){
+	
+		FILE *medrec;
+		char f_name[10];
+		itoa(position, f_name);
+		char command[23];
+		command[0]='x';
+		command[1]='d';
+		command[2]='g';
+		command[3]='-';
+		command[4]='o';
+		command[5]='p';
+		command[6]='e';
+		command[7]='n';
+		command[8]=' ';
+		int z;
+		for(z=9;z<23;z++)command[z]=f_name[z-9];
 
+		//printf("%s\n", f_name);
+		medrec = fopen(f_name, "w");
+		if(medrec != NULL){
+			fputs("-----Medical Record ---- \n #Edit me",medrec);
+		}else{
+			medrec = fopen(f_name, "a");
+			fputs("-----Medical Record ---- \n #Edit me",medrec);
+		}
 
+		fclose(medrec);
+		system(command);
+}
 
-
+void goback(){
+	printf("%s","----Go back to main menu? (y/n)---\n");
+	char ans;
+	scanf(" %c",&ans);
+	if(ans=='y'){
+		//delete register
+		menu();
+	}else if(ans=='n'){
+		bye();
+	}else{
+		printf("%s","----Invalid answer!!!---\n");
+		
+	}
+}
 
 //generate 100/10M registers in dataDogs.txt/.bin
 void createRegister(){
@@ -237,10 +283,11 @@ void createRegister(){
 	addRegister(reg);
 	free(reg);	
 	printf("%s","Register added succesfully!\n");
+	goback();
 
 }
 
-//swap a register in position with the last one, updating pointers in list.
+//swap the register in position with the last one, updating pointers in list.
 void swapRegister(void *reg, long position){
 	struct dogType *RegA;
 	RegA=reg;
@@ -325,11 +372,6 @@ void swapRegister(void *reg, long position){
 
 	updateRegister(RegA,PosB);
 	updateRegister(RegB,PosA);
-
-	
-
-
-	
 
 }
 
@@ -449,12 +491,17 @@ void seeRegister(){
 		printf("%s%c\n","Pet gender (F/M): ",reg->gender);
 		printf("%s","------Opening File(Medical Record)------\n");
 
+		//medical record
+		showMedicalRecord(position);
+
 		free(reg);
-		//here stuff to open medical record
+		
+
 
 	}
 	
 	free(header);
+	goback();
 
 }
 
@@ -495,14 +542,16 @@ void menuDelRegister(){
 		if(ans=='y'){
 			//delete register
 			deleteRegister(reg,position);
-
+			printf("%s","---File deleted succesfully---\n");
+			goback();
 
 		}else if(ans=='n'){
-			menuDelRegister();
+			menu();
 		}else{
 			printf("%s","----Invalid answer!!!---\n");
 			menuDelRegister();
 		}
+
 
 	}
 
@@ -530,6 +579,7 @@ void menuSearchRegister(){
 	if(header->head_pos[hashed] == 0 ){ //List is empty
 
 		printf("%d%s",counter," registers found!.\n");
+		goback();
 	
 	}else{ //list has one or more elements
 
@@ -592,7 +642,7 @@ void menuSearchRegister(){
 			printf("%s%c\n","Pet gender (F/M): ",reg->gender);
 			printf("%s","-------------------------------------\n");
 			free(reg);
-
+			goback();
 
 		}
 	}
