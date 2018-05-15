@@ -6,7 +6,7 @@
 //# names in petnames.txt
 #define N_PETNAMES 1716
 //#indexes in hashtable
-#define N_INDEXES 100
+#define N_INDEXES 1000
 //File to Write 10M structs
 #define FILE_DATADOGS "dataDogs.dat"
 //File with names

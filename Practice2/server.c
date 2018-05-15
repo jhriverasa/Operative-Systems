@@ -8,7 +8,7 @@
 #include <time.h>
 #include <sys/types.h>
 
-#define PORT 3535
+#define PORT 6112
 
 //# names in petnames.txt
 #define N_PETNAMES 1716
