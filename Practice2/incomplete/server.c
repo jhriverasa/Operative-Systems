@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <sys/socket.h>
 #include <stdlib.h>
@@ -27,8 +26,9 @@
 #define READ_REGISTER 2
 #define SHOW_MEDICAL_RECORD 3
 #define CREATE_REGISTER 4
-#define REGISTERS_FOUND 5
-
+#define FIND_REGISTER 5
+#define READ_FOUND_REGISTER 6
+#define DELETE_REGISTER 7
 
 //headers to avoid warnings
 void bye();
@@ -563,13 +563,17 @@ void menuDelRegister(){
 }
 
 
-void menuSearchRegister(unsigned long hashed,long positions[50000]){
+void menuSearchRegister(void *name, long index[50000]){
     struct fileHeader *header;
     header = malloc(sizeof(struct fileHeader));
     readHeader(header);
 
-
-
+    
+    //receive name and calculate its hash.
+    char regName[32];
+    strcpy(regName,name);
+    unsigned long hashed;
+    hashed = hash(regName,N_INDEXES);
     int counter;
     counter=0;
 
@@ -583,7 +587,7 @@ void menuSearchRegister(unsigned long hashed,long positions[50000]){
         //read every element in list and compare if their names are equal to asked name.
         struct dogType *currentReg;
         currentReg = malloc(sizeof(struct dogType));
-        long index[50000];
+        //long index[50000];
 
         readRegister(header->head_pos[hashed],currentReg);
         if( strcasecmp(currentReg->name , regName) == 0 ){
@@ -605,9 +609,8 @@ void menuSearchRegister(unsigned long hashed,long positions[50000]){
         }
 
         //here we have all registers found in Counter and all their indexes in index[x]
-        positions=index;
-        hashed = counter;
-
+        index[49999]=counter; //last index = total registers found
+        
     }
 }
 
@@ -727,22 +730,72 @@ int main(int argc, char const *argv[])
 
         }
 
-        if(*buffer == REGISTERS_FOUND){
-            printf("%s\n","REGISTERS_FOUND DETECTED!" );
-
-            struct dogType *tempReg = malloc(sizeof(struct dogType));
-            unsigned long *tempHashed = malloc(sizeof(long));
-            valread = recv(new_socket ,tempHashed ,sizeof(long),0 ); 
+        if(*buffer == FIND_REGISTER){
+            printf("%s\n","FIND_REGISTER DETECTED!" );
+            int *length=malloc(sizeof(int));
+            valread = recv(new_socket , length ,sizeof(int),0 ); 
+            char tempName[32];
+            valread = recv(new_socket , tempName ,*length,0 ); 
             long positions[50000];
-            menuSearchRegister(*tempHashed, positions); 
+            menuSearchRegister(tempName, positions); 
             
+            int *numregs=malloc(sizeof(int));
+            *numregs = positions[49999];
+            send(new_socket, numregs , sizeof(int) , 0);
             
+
+            close(server_fd);
+            close(new_socket);
+
+            free(numregs);
+            free(length);
+
+        }
+
+        if(*buffer == READ_FOUND_REGISTER){
+            printf("%s\n","READ_FOUND_REGISTER DETECTED!" );
+            int *length=malloc(sizeof(int));
+            valread = recv(new_socket , length ,sizeof(int),0 ); 
+            char tempName[32];
+            valread = recv(new_socket , tempName ,*length,0 ); 
+            long positions[50000];
+            menuSearchRegister(tempName, positions); 
+            
+            int *regtoread=malloc(sizeof(int));
+            valread = recv(new_socket, regtoread,sizeof(int),0);
+
+            long lPos;
+            lPos = positions[*regtoread-1];
+
+            struct dogType *tempReg;
+            tempReg= malloc(sizeof(struct dogType));
+            readRegister(lPos,tempReg);
+            send(new_socket,tempReg, sizeof(struct dogType),0 );
+
+
             close(server_fd);
             close(new_socket);
 
             free(tempReg);
 
+        }
+
+
+
+        if(*buffer == DELETE_REGISTER){
+            printf("%s\n","DELETE_REGISTER DETECTED!" );
+
+            struct dogType *tempReg = malloc(sizeof(struct dogType));
+            long *tempPosition = malloc(sizeof(long));
+            valread = recv(new_socket ,tempPosition ,sizeof(long),0 );  
+            valread = recv(new_socket, tempReg, sizeof(struct dogType),0);
+            deleteRegister(tempReg,*tempPosition);
             
+            close(server_fd);
+            close(new_socket);
+
+            free(tempReg);
+            free(tempPosition);
 
         }
 

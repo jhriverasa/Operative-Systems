@@ -15,6 +15,7 @@
 #define N_TOTALREGISTERS 1000
 
 
+
 struct dogType{
 	int age;
 	float weight;

@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -18,7 +17,9 @@
 #define READ_REGISTER 2
 #define SHOW_MEDICAL_RECORD 3
 #define CREATE_REGISTER 4
-#define REGISTERS_FOUND 5
+#define FIND_REGISTER 5
+#define READ_FOUND_REGISTER 6
+#define DELETE_REGISTER 7
 
 
 //headers to avoid warnings
@@ -133,13 +134,55 @@ int sendMsg(int command, void *header,void *reg, long position)
         
     }
 
-    if(*msg==REGISTERS_FOUND){
-        long *hashedP=malloc(sizeof(long));
-        *hashedP= position;  //position is hashed
-        send(sock, hashedP , sizeof(long) , 0);
+    if(*msg==FIND_REGISTER){
+        int length = position;
+        char *nameP=malloc(length);
+        int *sizelen = malloc(sizeof(int));
+        *sizelen=length;
+        send(sock, sizelen , sizeof(int) , 0);
+        nameP= header;  //header is name
+        send(sock, nameP , length , 0);
+
+        int *numregs = malloc(sizeof(int));
+        valread= recv(sock,numregs,sizeof(int),0);
+        position=*numregs;
+
+    
         close(sock);
         
     }
+
+    if(*msg==READ_FOUND_REGISTER){
+        int length = position;
+        char *nameP=malloc(length);
+        int *sizelen = malloc(sizeof(int));
+        *sizelen=length;
+        send(sock, sizelen , sizeof(int) , 0);
+        nameP= header;  //header is name
+        send(sock, nameP , length , 0);
+
+        //reg is numreg 
+        send(sock,reg,sizeof(long),0);
+
+        //reg = struct dogType asked
+        struct dogType *tempReg;
+        tempReg= malloc(sizeof(struct dogType));
+        valread= recv(sock,tempReg,sizeof(struct dogType),0);
+        reg=tempReg;
+        close(sock);
+        
+    }
+
+    if(*msg==DELETE_REGISTER){
+        long *positionP=malloc(sizeof(long));
+        *positionP= position;
+        send(sock, positionP, sizeof(long), 0);
+        send(sock , reg ,sizeof(struct dogType),0 );
+        close(sock);
+        
+    }
+
+
 
     return 0;
 }
@@ -163,6 +206,10 @@ void readRegister(long position, struct dogType *reg){
     sendMsg(READ_REGISTER,NULL,reg,position);
 }
 
+void deleteRegister(void *reg,long delPosition){
+    sendMsg(DELETE_REGISTER,NULL,reg,delPosition);
+}
+
 void showMedicalRecord(long position){
     sendMsg(SHOW_MEDICAL_RECORD,NULL,NULL,0);
 }
@@ -170,8 +217,15 @@ void addRegister(void *reg){
     sendMsg(CREATE_REGISTER,NULL,reg,0);
 }
 
-void registersFound(long hashed){
-    sendMsg(REGISTERS_FOUND,NULL,NULL,hashed);
+void findRegister(void *name,long len){
+    sendMsg(FIND_REGISTER,name,NULL,len);
+}
+
+struct dogType * readFoundRegister(void *name, void *numreg,long len){
+    sendMsg(READ_FOUND_REGISTER,name,numreg,len);
+    struct dogType *data=malloc(sizeof(struct dogType));
+    data = numreg;
+    return  data;
 }
 
 void goback(){
@@ -275,6 +329,59 @@ void seeRegister(){
 
 }
 
+void menuDelRegister(){
+
+    struct fileHeader *header;
+    header = malloc(sizeof(struct fileHeader));
+    readHeader(header);
+    printf("%s","---------------------\n");
+    printf("%s","*** Delete Register ***\n");
+    printf("%s","----------------------\n\n");
+    printf("%s%d\n","Number of existing registers : ",header->total_registers);
+    printf("%s%d\n","insert a number between 1 - ",header->total_registers);
+    int regNum;
+    scanf("%d",&regNum);
+    if(regNum<1 || regNum>header->total_registers){ 
+        printf("%s","Invalid register number (not in range!).\n");
+        menuDelRegister();
+    }else{
+        
+        long position = sizeof(struct fileHeader) + (regNum-1)*sizeof(struct dogType); 
+        struct dogType *reg;
+        reg= malloc(sizeof(struct dogType));
+        readRegister(position,reg);
+
+        printf("%s%d%s","------ Register #",regNum," ------\n");
+        printf("%s%s\n","Pet name : ",reg->name);
+        printf("%s%d\n","Pet age (years): ",reg->age);
+        printf("%s%f\n","Pet weight (Kg): ",reg->weight);
+        printf("%s%d\n","Pet height (cm): ",reg->height);
+        printf("%s%s\n","Animal : ",reg->animal_type);
+        printf("%s%s\n","Pet race : ",reg->race);
+        printf("%s%c\n","Pet gender (F/M): ",reg->gender);
+        printf("%s","--------------------------------\n\n");
+        printf("%s","----Do you want to delete this register? (y/n)---\n");
+        char ans;
+        scanf(" %c",&ans);
+        if(ans=='y'){
+            //delete register
+            deleteRegister(reg,position);
+            printf("%s","---File deleted succesfully---\n");
+            goback();
+
+        }else if(ans=='n'){
+            menu();
+        }else{
+            printf("%s","----Invalid answer!!!---\n");
+            menuDelRegister();
+        }
+
+
+    }
+
+
+}
+
 
 void menuSearchRegister(){
     struct fileHeader *header;
@@ -293,13 +400,19 @@ void menuSearchRegister(){
 
     if(header->head_pos[hashed] == 0 ){ //List is empty
 
-        printf("%d%s",counter," registers found!.\n");
+        printf("%d%s",0," registers found!.\n");
         goback();
     
     }else{ //list has one or more elements
-
+        
+        
         //read every element in list and compare if their names are equal to asked name.
-        registersFound(*hashed);
+        int len = strlen(regName);
+        findRegister(regName,len);
+        //after whole process len is the number of registers found
+        int counter = len;
+
+
 
         //here we have all registers found in Counter and all their indexes in index[x]
         printf("\n%d%s",counter," registers found!.\n");
@@ -318,13 +431,16 @@ void menuSearchRegister(){
             menuSearchRegister();
         }else{
             
-            //look in index, read and show register.
-            long position;
-            position = index[regNum-1];
+            // show register.
 
             struct dogType *reg;
             reg= malloc(sizeof(struct dogType));
-            readRegister(position,reg);
+            len = strlen(regName);
+            int *numreg = malloc(sizeof(int)); 
+            *numreg = regNum;
+            reg = readFoundRegister(regName,numreg,len);
+
+            
 
             printf("\n%s%d%s","------ Register found #",regNum," ------\n");
             printf("%s%s\n","Pet name : ",reg->name);
@@ -362,9 +478,9 @@ void menu(){
     }else if(option ==2){
         seeRegister();
     }else if(option ==3){
-        //menuDelRegister();
+        menuDelRegister();
     }else if(option ==4){
-        //menuSearchRegister();
+        menuSearchRegister();
     }else if(option ==5){
         bye();
     }else{
