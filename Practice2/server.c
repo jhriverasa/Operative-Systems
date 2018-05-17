@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <sys/socket.h>
 #include <stdlib.h>
@@ -25,8 +24,11 @@
 //constants for server connection
 #define READ_HEADER 1
 #define READ_REGISTER 2
-
-
+#define SHOW_MEDICAL_RECORD 3
+#define CREATE_REGISTER 4
+#define FIND_REGISTER 5
+#define READ_FOUND_REGISTER 6
+#define DELETE_REGISTER 7
 
 //headers to avoid warnings
 void bye();
@@ -561,18 +563,15 @@ void menuDelRegister(){
 }
 
 
-void menuSearchRegister(){
+void menuSearchRegister(void *name, long index[50000]){
     struct fileHeader *header;
     header = malloc(sizeof(struct fileHeader));
     readHeader(header);
-    printf("%s","---------------------\n");
-    printf("%s","*** Search Register ***\n");
-    printf("%s","----------------------\n\n");
-    printf("%s","Enter pet name (Max 31 chars)\n");
+
     
     //receive name and calculate its hash.
     char regName[32];
-    scanf("%s", regName);
+    strcpy(regName,name);
     unsigned long hashed;
     hashed = hash(regName,N_INDEXES);
     int counter;
@@ -581,6 +580,7 @@ void menuSearchRegister(){
     if(header->head_pos[hashed] == 0 ){ //List is empty
 
         printf("%d%s",counter," registers found!.\n");
+        index[49999]=0;
         goback();
     
     }else{ //list has one or more elements
@@ -588,7 +588,7 @@ void menuSearchRegister(){
         //read every element in list and compare if their names are equal to asked name.
         struct dogType *currentReg;
         currentReg = malloc(sizeof(struct dogType));
-        long index[50000];
+        //long index[50000];
 
         readRegister(header->head_pos[hashed],currentReg);
         if( strcasecmp(currentReg->name , regName) == 0 ){
@@ -610,43 +610,8 @@ void menuSearchRegister(){
         }
 
         //here we have all registers found in Counter and all their indexes in index[x]
-        printf("\n%d%s",counter," registers found!.\n");
-
-        //now ask for one of them (if we found 1 or more).
-        if(counter==0)menuSearchRegister();
-
-        printf("%s","------------------\n");
-        printf("%s","*** Which one? ***\n");
-        printf("%s","------------------\n");
-        printf("%s%d\n","Insert a number between 1 and ",counter);
-        int regNum;
-        scanf("%d",&regNum);
-        if(regNum<1 || regNum > counter){ 
-            printf("%s","Invalid register number (not in range!) :( .\n");
-            menuSearchRegister();
-        }else{
-            
-            //look in index, read and show register.
-            long position;
-            position = index[regNum-1];
-
-            struct dogType *reg;
-            reg= malloc(sizeof(struct dogType));
-            readRegister(position,reg);
-
-            printf("\n%s%d%s","------ Register found #",regNum," ------\n");
-            printf("%s%s\n","Pet name : ",reg->name);
-            printf("%s%d\n","Pet age (years): ",reg->age);
-            printf("%s%f\n","Pet weight (Kg): ",reg->weight);
-            printf("%s%d\n","Pet height (cm): ",reg->height);
-            printf("%s%s\n","Animal : ",reg->animal_type);
-            printf("%s%s\n","Pet race : ",reg->race);
-            printf("%s%c\n","Pet gender (F/M): ",reg->gender);
-            printf("%s","-------------------------------------\n");
-            free(reg);
-            goback();
-
-        }
+        index[49999]=counter; //last index = total registers found
+        
     }
 }
 
@@ -689,7 +654,7 @@ int main(int argc, char const *argv[])
         address.sin_addr.s_addr = INADDR_ANY;
         address.sin_port = htons( PORT );
          
-        // Forcefully attaching socket to the port 3535
+        // Forcefully attaching socket to the port 
         if (bind(server_fd, (struct sockaddr *)&address, 
                                      sizeof(address))<0)
         {
@@ -707,15 +672,17 @@ int main(int argc, char const *argv[])
             perror("accept");
             exit(EXIT_FAILURE);
         }
-        
-        valread = read( new_socket , buffer, sizeof(int));
+    
+        valread = recv( new_socket , buffer, sizeof(int),0);
         printf("%d\n",*buffer );
         if(*buffer == READ_HEADER){
             printf("%s\n","READ HEADER DETECTED!" );
             struct fileHeader *tempHeader = malloc(sizeof(struct fileHeader));
             readHeader(tempHeader);
             send(new_socket, tempHeader , sizeof(struct fileHeader) , 0);
-            //free(tempHeader);
+            free(tempHeader);
+            close(server_fd);
+            close(new_socket);
         }
 
         if(*buffer == READ_REGISTER){
@@ -723,20 +690,120 @@ int main(int argc, char const *argv[])
 
             struct dogType *tempReg = malloc(sizeof(struct dogType));
             long *tempPosition = malloc(sizeof(long));
-            valread = read(new_socket ,tempPosition ,sizeof(long) );
-           
-            readRegister(*tempPosition,tempReg);
-
+            valread = recv(new_socket ,tempPosition ,sizeof(long),0 );  
+            readRegister(*tempPosition,tempReg);    
             send(new_socket, tempReg , sizeof(struct dogType) , 0);
-            //free(tempReg);
-            //free(tempPosition);
+            
+            close(server_fd);
+            close(new_socket);
+
+            free(tempReg);
+            free(tempPosition);
+
+        }
+
+        if(*buffer == SHOW_MEDICAL_RECORD){
+            printf("%s\n","SHOW_MEDICAL_RECORD DETECTED!" );
+            long *tempPosition = malloc(sizeof(long));
+            valread = recv(new_socket ,tempPosition ,sizeof(long),0 );
+            showMedicalRecord(*tempPosition);
+            close(server_fd);
+            close(new_socket);
+
+            free(tempPosition);
+
+        }
+
+        if(*buffer == CREATE_REGISTER){
+            printf("%s\n","CREATE_REGISTER DETECTED!" );
+
+            struct dogType *tempReg = malloc(sizeof(struct dogType));
+            valread = recv(new_socket ,tempReg ,sizeof(struct dogType),0 );  
+            
+            addRegister(tempReg);
+            
+            close(server_fd);
+            close(new_socket);
+
+            free(tempReg);
+            
+
+        }
+
+        if(*buffer == FIND_REGISTER){
+            printf("%s\n","FIND_REGISTER DETECTED!" );
+            int *length=malloc(sizeof(int));
+            valread = recv(new_socket , length ,sizeof(int),0 ); 
+            char tempName[32];
+            valread = recv(new_socket , tempName ,*length,0 ); 
+            long positions[50000];
+            menuSearchRegister(tempName, positions); 
+            
+            int *numregs=malloc(sizeof(int));
+            *numregs = positions[49999];
+            
+            send(new_socket, numregs , sizeof(long) , 0);
+
+            close(server_fd);
+            close(new_socket);
+
+            free(numregs);
+            free(length);
+
+        }
+
+        if(*buffer == READ_FOUND_REGISTER){
+            printf("%s\n","READ_FOUND_REGISTER DETECTED!" );
+            int *length=malloc(sizeof(int));
+            valread = recv(new_socket , length ,sizeof(int),0 ); 
+            char tempName[32];
+            valread = recv(new_socket , tempName ,*length,0 ); 
+            long positions[50000];
+            menuSearchRegister(tempName, positions); 
+            
+            int *regtoread=malloc(sizeof(int));
+            valread = recv(new_socket, regtoread,sizeof(int),0);
+
+
+            long lPos;
+            lPos = positions[*regtoread-1];
+
+            struct dogType *tempReg;
+            tempReg= malloc(sizeof(struct dogType));
+            readRegister(lPos,tempReg);
+
+
+
+            send(new_socket,tempReg, sizeof(struct dogType),0 );
+
+
+            close(server_fd);
+            close(new_socket);
+
+            free(tempReg);
 
         }
 
 
+
+        if(*buffer == DELETE_REGISTER){
+            printf("%s\n","DELETE_REGISTER DETECTED!" );
+
+            struct dogType *tempReg = malloc(sizeof(struct dogType));
+            long *tempPosition = malloc(sizeof(long));
+            valread = recv(new_socket ,tempPosition ,sizeof(long),0 );  
+            valread = recv(new_socket, tempReg, sizeof(struct dogType),0);
+            deleteRegister(tempReg,*tempPosition);
+            
+            close(server_fd);
+            close(new_socket);
+
+            free(tempReg);
+            free(tempPosition);
+
+        }
+
     }
 
-    //send(new_socket , hello , strlen(hello) , 0 );
-    //printf("Hello message sent\n");
     return 0;
 }
