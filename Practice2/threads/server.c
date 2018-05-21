@@ -35,7 +35,7 @@
 #define EXIT_CLIENT 8
 
 
-// Array de hilos
+// Threads array
 pthread_t thread[MAX_CLIENTS];
 int pos;
 
@@ -56,10 +56,8 @@ struct dogType{
     long next_struct;
 };
 
-/*
- * Método: free_position
- * Busca una posición libre para ubicar un hilo
- */
+
+//Look for a free slot for a new client
 int free_slot() {
     for(int i = 0; i < MAX_CLIENTS; i++)
         if(thread[i] == (pthread_t)NULL)
@@ -269,48 +267,7 @@ void showMedicalRecord(long position){
         system(command);
 }
 
-void goback(){
 
-}
-
-//generate 100/10M registers in dataDogs.txt/.bin
-void createRegister(){
-
-    long i;
-    int antirepeat = 151; //arbitrary prime number
-    char atype[32] = "12345678901234567890123456789012";
-    char arace[16] = "1234567890123456";
-
-
-    //build and fill dogType Struct with scanf
-    struct dogType *reg;
-    reg = malloc(sizeof(struct dogType));
-    printf("%s","---------------------------------\n");
-    printf("%s","*** Creating New Register ***\n");
-    printf("%s","---------------------------------\n\n");
-    printf("%s","Please insert pet name (max 32 chars):\n");
-    scanf("%s", reg->name);
-    printf("%s","Please insert pet age (years)/int:\n");
-    scanf("%d", &reg->age);
-    printf("%s","Please insert pet weight (kg)/float:\n");
-    scanf("%f", &reg->weight);
-    printf("%s","Please insert pet height (cm)/int:\n");
-    scanf("%d", &reg->height);
-    printf("%s","Please insert animal(dog,cat...)(max 32 chars):\n");
-    scanf("%s", reg->animal_type);
-    printf("%s","Please insert race (max 16 chars):\n");
-    scanf("%s", reg->race);
-    printf("%s","Please insert pet gender (M/F) :\n");
-    scanf(" %c", &reg->gender);
-    reg->next_struct = 0; //long
-
-    //here we have reg ready to write into file.
-    addRegister(reg);
-    free(reg);  
-    printf("%s","Register added succesfully!\n");
-    goback();
-
-}
 
 //swap the register in position with the last one, updating pointers in list.
 void swapRegister(void *reg, long position){
@@ -503,7 +460,7 @@ void menuSearchRegister(void *name, long index[50000]){
 
         printf("%d%s",counter," registers found!.\n");
         index[49999]=0;
-        goback();
+        
     
     }else{ //list has one or more elements
 
@@ -546,9 +503,9 @@ void bye(){
 }
 
 
-void *cliente(int new_socket){
+void *cliente(void *new_socketP){
 
-
+    int new_socket=*(int*)new_socketP;
     int valread;
     int id = pos;
     int *buffer = malloc(sizeof(int));
@@ -562,9 +519,6 @@ void *cliente(int new_socket){
             send(new_socket, tempHeader , sizeof(struct fileHeader) , 0);
             free(tempHeader);
 
-
-            //close(server_fd);
-            //close(new_socket);
         }
 
         if(*buffer == READ_REGISTER){
@@ -575,9 +529,7 @@ void *cliente(int new_socket){
             valread = recv(new_socket ,tempPosition ,sizeof(long),0 );  
             readRegister(*tempPosition,tempReg);    
             send(new_socket, tempReg , sizeof(struct dogType) , 0);
-            
-            //close(server_fd);
-            //close(new_socket);
+
 
             free(tempReg);
             free(tempPosition);
@@ -589,8 +541,7 @@ void *cliente(int new_socket){
             long *tempPosition = malloc(sizeof(long));
             valread = recv(new_socket ,tempPosition ,sizeof(long),0 );
             showMedicalRecord(*tempPosition);
-            //close(server_fd);
-            //close(new_socket);
+
 
             free(tempPosition);
 
@@ -604,8 +555,7 @@ void *cliente(int new_socket){
             
             addRegister(tempReg);
             
-            //close(server_fd);
-            //close(new_socket);
+
 
             free(tempReg);
             
@@ -628,11 +578,9 @@ void *cliente(int new_socket){
             
             int *numregs=malloc(sizeof(int));
             *numregs = positions[49999];
-            printf(":V  %s\n", tempName);
             send(new_socket, numregs , sizeof(long) , 0);
 
-            //close(server_fd);
-            //close(new_socket);
+
 
             free(numregs);
             free(length);
@@ -664,8 +612,6 @@ void *cliente(int new_socket){
             send(new_socket,tempReg, sizeof(struct dogType),0 );
 
 
-            //close(server_fd);
-            //close(new_socket);
 
             free(tempReg);
 
@@ -681,9 +627,7 @@ void *cliente(int new_socket){
             valread = recv(new_socket ,tempPosition ,sizeof(long),0 );  
             valread = recv(new_socket, tempReg, sizeof(struct dogType),0);
             deleteRegister(tempReg,*tempPosition);
-            
-            //close(server_fd);
-            //close(new_socket);
+
 
             free(tempReg);
             free(tempPosition);
@@ -697,9 +641,7 @@ void *cliente(int new_socket){
             //dummy long data
             long *tempPosition = malloc(sizeof(long));
             valread = recv(new_socket ,tempPosition ,sizeof(long),0 );
-            
-            //close(server_fd);
-            //close(new_socket);
+
             close(new_socket);
             pthread_join(thread[id], NULL);
             thread[id] = (pthread_t) NULL;
@@ -764,9 +706,11 @@ int main(int argc, char const *argv[])
             pos = free_slot();
 
         while (pos == -1);
-        printf("Client: %d\n", pos);
-        // Crea el hilo y atiende el cliente
-        pthread_create(&thread[pos], NULL, (void *)cliente, new_socket);
+        printf("Client connected: %d\n", pos+1);
+        // Create new thread and listen new client
+        int *new_socketP=malloc(sizeof(int));
+        *new_socketP=new_socket;
+        pthread_create(&thread[pos], NULL, (void *)cliente, new_socketP);
         //printf("VALI VERGA!\n");
     
         //-----------------------------

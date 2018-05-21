@@ -23,7 +23,7 @@
 #define DELETE_REGISTER 7
 #define EXIT_CLIENT 8
 
-//"local" variable
+//Local variable
 int sock;
 
 //headers to avoid warnings
@@ -31,8 +31,6 @@ void bye();
 void goback();
 void menu();
 
-
-//int main(int argc, char const *argv[])
 
 
 struct dogType{
@@ -74,14 +72,13 @@ int sendMsg(int command, void *header,void *reg, long position,struct dogType *d
 
     //Request Type
     *msg = command;
-    printf("%d\n", *msg);
+    //printf("%d\n", *msg);
     send(sock , msg , sizeof(int) , 0 );
 
 
     if(*msg==READ_HEADER){
         valread = recv(sock,header,sizeof(struct fileHeader),0 );
         if (valread==-1)printf("VALHAR VERGHULIS\n");
-        //close(sock);
        
     }
 
@@ -91,7 +88,6 @@ int sendMsg(int command, void *header,void *reg, long position,struct dogType *d
         send(sock, positionP, sizeof(long), 0);
         valread = recv(sock , reg ,sizeof(struct dogType),0 );
         if (valread==-1)printf("VALHAR VERGHULIS\n");
-        //close(sock);
         
     }
 
@@ -100,13 +96,11 @@ int sendMsg(int command, void *header,void *reg, long position,struct dogType *d
         long *positionP=malloc(sizeof(long));
         *positionP= position; 
         send(sock, positionP, sizeof(long), 0);
-        //close(sock);
         
     }
 
     if(*msg==CREATE_REGISTER){
         send(sock, reg , sizeof(struct dogType) , 0);
-        //close(sock);
         
     }
 
@@ -121,9 +115,6 @@ int sendMsg(int command, void *header,void *reg, long position,struct dogType *d
 
         valread= recv(sock,reg,sizeof(int),0);
         if (valread==-1)printf("VALHAR VERGHULIS\n");
-
-    
-        //close(sock);
         
     }
 
@@ -142,9 +133,6 @@ int sendMsg(int command, void *header,void *reg, long position,struct dogType *d
         //dt = dogtype asked
         valread= recv(sock,dt,sizeof(struct dogType),0);
         if (valread==-1)printf("VALHAR VERGHULIS\n");
-
-
-        //close(sock);
         
     }
 
@@ -153,7 +141,7 @@ int sendMsg(int command, void *header,void *reg, long position,struct dogType *d
         *positionP= position;
         send(sock, positionP, sizeof(long), 0);
         send(sock , reg ,sizeof(struct dogType),0 );
-        //close(sock);
+       
         
     }
 
