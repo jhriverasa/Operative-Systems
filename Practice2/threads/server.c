@@ -7,6 +7,7 @@
 #include <time.h>
 #include <sys/types.h>
 #include <pthread.h>
+#include <arpa/inet.h>
 
 #define PORT 6112
 #define MAX_CLIENTS 4
@@ -64,6 +65,8 @@ int free_slot() {
             return i;
     return -1;
 }
+
+
 
 struct fileHeader{
     int total_registers;
@@ -502,6 +505,40 @@ void bye(){
     exit(0);
 }
 
+char* get_ip(int client_fd) {
+    struct sockaddr_in addr;
+    char* ip;
+    socklen_t addr_size = sizeof(struct sockaddr_in);
+    int r = getpeername(client_fd, (struct sockaddr *)&addr, &addr_size);
+    return inet_ntoa(addr.sin_addr);
+}
+
+void logWrite(char* instruction, char* regChar, int client_fd) {
+    FILE* logFile;
+    logFile = fopen("serverDogs.log", "a");
+    
+
+    // time to string
+    time_t tiempo = time(NULL);
+    char time[80];
+    struct tm *tmPtr;
+    tmPtr = localtime(&tiempo);
+    strftime(time, 80, "%Y-%m-%d | %H:%M:%S", tmPtr);
+    // write and close log
+    char* ip = get_ip(client_fd);
+    char spacesBeforeIP[15-strlen(ip)];
+    for(int i = 0; i < 15-strlen(ip); i++)
+        spacesBeforeIP[i] = ' ';
+    if(logFile != NULL){
+        fprintf(logFile, "Date/time: %s | Client: %s%s\t| Instruction: %s | Parameter: %s\n", time, spacesBeforeIP, ip, instruction, regChar);
+    }else{
+        logFile = fopen("serverDogs.log", "a");
+        fprintf(logFile, "Date/time: %s | Client: %s%s\t| Instruction: %s | Parameter: %s\n", time, spacesBeforeIP, ip, instruction, regChar);
+    }
+
+    fclose(logFile);
+}
+
 
 void *cliente(void *new_socketP){
 
@@ -531,6 +568,9 @@ void *cliente(void *new_socketP){
             send(new_socket, tempReg , sizeof(struct dogType) , 0);
 
 
+            char regCh[10];
+            logWrite("See-Register",itoa(*tempPosition,regCh),new_socket);
+
             free(tempReg);
             free(tempPosition);
 
@@ -552,13 +592,17 @@ void *cliente(void *new_socketP){
 
             struct dogType *tempReg = malloc(sizeof(struct dogType));
             valread = recv(new_socket ,tempReg ,sizeof(struct dogType),0 );  
-            
             addRegister(tempReg);
-            
 
+            struct fileHeader *tempHeader = malloc(sizeof(struct fileHeader));
+            readHeader(tempHeader);
+
+            long tempPosition = sizeof(struct fileHeader) + (tempHeader->total_registers)*sizeof(struct dogType);
+            char regCh[10];
+            logWrite("Create-Register",itoa(tempPosition,regCh),new_socket);
 
             free(tempReg);
-            
+            free(tempHeader);
 
         }
 
@@ -607,7 +651,7 @@ void *cliente(void *new_socketP){
             tempReg= malloc(sizeof(struct dogType));
             readRegister(lPos,tempReg);
 
-
+            logWrite("Search-register",tempName,new_socket);
 
             send(new_socket,tempReg, sizeof(struct dogType),0 );
 
@@ -627,6 +671,9 @@ void *cliente(void *new_socketP){
             valread = recv(new_socket ,tempPosition ,sizeof(long),0 );  
             valread = recv(new_socket, tempReg, sizeof(struct dogType),0);
             deleteRegister(tempReg,*tempPosition);
+
+            char regCh[10];
+            logWrite("Delete-Register",itoa(*tempPosition,regCh),new_socket);
 
 
             free(tempReg);
